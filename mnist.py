@@ -45,7 +45,7 @@ def forward(X, neural_network):
     return y_hat
 
 
-def backward(X, y, y_hat, learning_rate, neural_network):
+def backward(X, y, y_hat, learning_rate, neural_network, z1, z2, a1):
     # Обратное распространение
     # delta2 = (y_hat - y) * sigmoid_derivative(y_hat)
     # dW2 = np.dot(neural_network['a1'].T, delta2)
@@ -55,23 +55,23 @@ def backward(X, y, y_hat, learning_rate, neural_network):
     # dW1 = np.dot(X.T, delta1)
     # dB1 = np.sum(delta1, axis=0)
 
-    dB2 = np.sum(2*(y_hat - y)*sigmoid_derivative(neural_network['z2']), axis=0, keepdims=True)
+    dB2 = np.sum(2*(y_hat - y)*sigmoid_derivative(z2), axis=0, keepdims=True)
 
     dW2 = []
     for i in range(len(neural_network['W2'])):
-        temp = 2*(y_hat - y)*sigmoid_derivative(neural_network['z2'])
+        temp = 2*(y_hat - y)*sigmoid_derivative(z2)
         for j in range(len(temp)):
-            temp[j] = temp[j] * neural_network['a1'][j][i]
+            temp[j] = temp[j] * a1[j][i]
         c = np.sum(temp, axis=0, keepdims=True)[0]
         dW2.append(c)
     dW2 = np.array(dW2)
 
     dB1 = []
     for i in range(len(neural_network['W2'])):
-        du = 2 * (y_hat - y) * sigmoid_derivative(neural_network['z2'])
+        du = 2 * (y_hat - y) * sigmoid_derivative(z2)
         w = neural_network['W2'][i].T
         for j in range(len(du)):
-            h = sigmoid_derivative(neural_network['z1'][j][i])
+            h = sigmoid_derivative(z1[j][i])
             du[j] = du[j] * w * h
         du = np.sum(du, axis=1, keepdims=True)
         dB1.append([np.sum(du)])
@@ -80,10 +80,10 @@ def backward(X, y, y_hat, learning_rate, neural_network):
     dW1 = np.zeros((len(neural_network['W1']), len(neural_network['W1'][0])))
     for i in range(len(neural_network['W1'])):
         for j in range(len(neural_network['W1'][i])):
-            du = 2 * (y_hat - y) * sigmoid_derivative(neural_network['z2'])
+            du = 2 * (y_hat - y) * sigmoid_derivative(z2)
             w = neural_network['W2'][j].T
             for k in range(len(du)):
-                h = sigmoid_derivative(neural_network['z1'][k][j])
+                h = sigmoid_derivative(z1[k][j])
                 l = X[k][i]
                 du[k] = du[k] * w * h * l
             du = np.sum(du, axis=1, keepdims=True)
@@ -105,11 +105,23 @@ def backward(X, y, y_hat, learning_rate, neural_network):
     neural_network['B1'] -= learning_rate * dB1
 
 
-def train(X, y, epochs, learning_rate, neural_network):
+def train(X, y, epochs, learning_rate, neural_network, batch_size):
     for epoch in range(epochs):
         # Прямое и обратное распространение
         y_hat = forward(X, neural_network)
-        backward(X, y, y_hat, learning_rate, neural_network)
+        z1 = neural_network['z1']
+        z2 = neural_network['z2']
+        a1 = neural_network['a1']
+        rng = np.random.default_rng()
+        indices = rng.choice(y_hat.shape[0], size=batch_size, replace=False)
+        new_X = X[indices]
+        new_y_hat = y_hat[indices]
+        new_y = y[indices]
+        new_z1 = z1[indices]
+        new_z2 = z2[indices]
+        new_a1 = a1[indices]
+
+        backward(new_X, new_y, new_y_hat, learning_rate, neural_network, new_z1, new_z2, new_a1)
 
         # Вычисление функции потерь
         loss = (y_hat - y)**2
@@ -126,12 +138,12 @@ def predict(X, neural_network):
     y_hat = forward(X, neural_network)
     max_index = np.argmax(y_hat)
 
-    return max_index, np.max(y_hat)
+    return max_index
 
 
 (x_train, y_train), (x_test, y_test) = mnist.load_data()
-x_train = x_train[:50]
-y_train = y_train[:50]
+x_train = x_train[:1000]
+y_train = y_train[:1000]
 x_test = x_test[:20]
 y_test = y_test[:20]
 x_train = x_train.astype('float32') / 255
@@ -167,9 +179,8 @@ for i in range(len(y_test)):
 new_x_train = np.array(new_x_train)
 new_y_train = np.array(new_y_train)
 
-train(new_x_train, new_y_train, 10, 0.15, neural_network)
+train(new_x_train, new_y_train, 100, 0.5, neural_network, 10)
 
 for i in range(len(new_x_test)):
     predictions = predict(new_x_test[i], neural_network)
-    print("\nPredictions:", predictions)
-    print("Actual:", np.argmax(new_y_test[i]))
+    print("Prediction:", predictions, " Actual:", np.argmax(new_y_test[i]))
